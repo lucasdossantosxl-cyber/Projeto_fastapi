@@ -10,9 +10,7 @@ from app.core.config import settings
 
 def configure_logging() -> None:
     """Configure root logger with a consistent format."""
-    log_format = (
-        "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
-    )
+    log_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
     logging.basicConfig(
         level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
         format=log_format,

@@ -1,47 +1,32 @@
-"""Advice data models."""
+"""Modelos das respostas e da validação do fornecedor."""
 
-from __future__ import annotations
+from datetime import UTC, datetime
+from typing import Annotated, Self
 
-from datetime import datetime
-from typing import Self
+from pydantic import BaseModel, Field, StringConstraints
 
-from pydantic import BaseModel, Field
+AdviceText = Annotated[str, StringConstraints(strict=True, strip_whitespace=True, min_length=1)]
+
+
+class AdviceSlip(BaseModel):
+    advice: AdviceText
+
+
+class ExternalAdviceResponse(BaseModel):
+    slip: AdviceSlip
 
 
 class AdviceResponse(BaseModel):
-    """Schema returned by the /advice endpoint."""
-
-    original: str = Field(..., description="Texto original do conselho")
-    gritando: str = Field(..., description="Texto em MAIÚSCULAS")
-    sussurrando: str = Field(..., description="Texto em minúsculas")
-    fetched_at: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="Timestamp UTC da consulta",
-    )
-
-    @classmethod
-    def from_raw_text(cls, text: str) -> Self:
-        """Factory: build from the raw advice string."""
-        return cls(
-            original=text,
-            gritando=text.upper(),
-            sussurrando=text.lower(),
-        )
-
-
-class HistoryEntry(BaseModel):
-    """Single entry as stored in the history file."""
-
     original: str
     gritando: str
     sussurrando: str
-    fetched_at: datetime
+    fetched_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
-    def to_file_format(self) -> str:
-        """Serialize to the legacy 3-line + separator format."""
-        return (
-            f"Original: {self.original}\n"
-            f"Gritando: {self.gritando}\n"
-            f"Sussurrando: {self.sussurrando}\n"
-            f"{'-' * 30}\n"
-        )
+    @classmethod
+    def from_raw_text(cls, text: str) -> Self:
+        return cls(original=text, gritando=text.upper(), sussurrando=text.lower())
+
+
+class HistoryResponse(BaseModel):
+    last: int
+    content: str

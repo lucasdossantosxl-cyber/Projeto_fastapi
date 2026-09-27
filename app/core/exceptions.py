@@ -14,9 +14,11 @@ class AdviceServiceError(Exception):
 
 class ExternalAPIError(AdviceServiceError):
     """Raised when the external advice API fails or returns unexpected data."""
+
     pass
 
 
 class HistoryIOError(AdviceServiceError):
     """Raised when reading/writing the history file fails."""
+
     pass

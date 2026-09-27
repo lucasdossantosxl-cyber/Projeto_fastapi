@@ -1,14 +1,10 @@
-"""FastAPI dependencies (injectables)."""
+"""Dependências compartilhadas pelas rotas."""
 
-from __future__ import annotations
+from typing import cast
 
-from typing import Annotated
+import httpx
+from fastapi import Request
 
-from fastapi import Query
 
-
-async def history_last_param(
-    last: Annotated[int, Query(ge=1, le=100, description="Número de entradas recentes")] = 15,
-) -> int:
-    """Validated 'last' query parameter for /historico."""
-    return last
+def get_http_client(request: Request) -> httpx.AsyncClient:
+    return cast(httpx.AsyncClient, request.app.state.http_client)
