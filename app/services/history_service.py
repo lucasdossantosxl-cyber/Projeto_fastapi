@@ -1,67 +1,73 @@
-"""Service layer: persist and retrieve advice history."""
+"""SQLite síncrono: rotas executam estas funções em threads do FastAPI."""
 
-from __future__ import annotations
-
-from pathlib import Path
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from app.core.config import settings
 from app.core.exceptions import HistoryIOError
 from app.core.logging import get_logger
-from app.models.advice import AdviceResponse, HistoryEntry
+from app.models.advice import AdviceResponse
 
 logger = get_logger(__name__)
 
 
-def _ensure_history_file() -> Path:
-    """Return the history file path, creating parent dirs if needed."""
-    path = settings.HISTORICO_PATH
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
+@contextmanager
+def database() -> Iterator[sqlite3.Connection]:
+    """Transação por operação, fechamento garantido e erros sem dados internos."""
+    try:
+        settings.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(settings.DATABASE_PATH, timeout=5)
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+    except (OSError, sqlite3.Error) as exc:
+        logger.exception("Falha no armazenamento do histórico")
+        raise HistoryIOError("Não foi possível acessar o histórico", status_code=500) from exc
+
+
+def initialize_database() -> None:
+    with database() as connection:
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS advice (
+                id INTEGER PRIMARY KEY,
+                original TEXT NOT NULL,
+                gritando TEXT NOT NULL,
+                sussurrando TEXT NOT NULL,
+                fetched_at TEXT
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS legacy_imports (
+                source TEXT PRIMARY KEY,
+                digest TEXT UNIQUE NOT NULL
+            )
+        """)
 
 
 def save_to_history(entry: AdviceResponse) -> None:
-    """Append an advice entry to the history file.
-
-    Raises:
-        HistoryIOError: if the file cannot be written.
-    """
-    path = _ensure_history_file()
-    history_entry = HistoryEntry(
-        original=entry.original,
-        gritando=entry.gritando,
-        sussurrando=entry.sussurrando,
-        fetched_at=entry.fetched_at,
-    )
-
-    try:
-        with path.open("a", encoding="utf-8") as f:
-            f.write(history_entry.to_file_format())
-        logger.info("History saved", extra={"file": str(path)})
-    except OSError as exc:
-        logger.exception("Failed to write history file")
-        raise HistoryIOError(f"Erro ao salvar histórico: {exc}") from exc
+    with database() as connection:
+        connection.execute(
+            "INSERT INTO advice (original, gritando, sussurrando, fetched_at) VALUES (?, ?, ?, ?)",
+            (entry.original, entry.gritando, entry.sussurrando, entry.fetched_at.isoformat()),
+        )
 
 
 def read_history(last: int = 15) -> str:
-    """Read the last *last* lines from the history file.
-
-    Returns:
-        The raw file content (or a friendly message if empty).
-    """
-    path = settings.HISTORICO_PATH
-
-    if not path.exists():
-        return "(sem histórico ainda)"
-
-    try:
-        with path.open("r", encoding="utf-8") as f:
-            lines = f.readlines()
-    except OSError as exc:
-        logger.exception("Failed to read history file")
-        raise HistoryIOError(f"Erro ao ler histórico: {exc}") from exc
-
-    # Each entry is 4 lines (3 data + 1 separator)
-    lines_per_entry = 4
-    total_lines = last * lines_per_entry
-    snippet = "".join(lines[-total_lines:]) if lines else "(sem histórico ainda)"
-    return snippet
+    """Seleciona os últimos registros por ID e mantém a apresentação cronológica."""
+    if not 1 <= last <= 100:
+        raise ValueError("last deve estar entre 1 e 100")
+    with database() as connection:
+        rows = connection.execute(
+            "SELECT original, gritando, sussurrando FROM advice ORDER BY id DESC LIMIT ?",
+            (last,),
+        ).fetchall()
+    return (
+        "".join(
+            f"Original: {original}\nGritando: {gritando}\nSussurrando: {sussurrando}\n{'-' * 30}\n"
+            for original, gritando, sussurrando in reversed(rows)
+        )
+        or "(sem histórico ainda)"
+    )

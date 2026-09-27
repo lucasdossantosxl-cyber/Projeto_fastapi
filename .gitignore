@@ -41,3 +41,12 @@ historico_conselhos.txt
 .pytest_cache/
 .coverage
 htmlcov/
+
+# SQLite e ferramentas
+data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+.mypy_cache/
+.ruff_cache/

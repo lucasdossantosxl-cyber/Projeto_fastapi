@@ -1,19 +1,17 @@
-"""GET /historico endpoint."""
-
-from __future__ import annotations
+"""A rota síncrona é executada pelo FastAPI em uma thread."""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Query
 
-from app.api.deps import history_last_param
+from app.models.advice import HistoryResponse
 from app.services.history_service import read_history
 
 router = APIRouter()
 
 
-@router.get("")
-async def get_history(last: Annotated[int, Depends(history_last_param)]) -> dict[str, object]:
-    """Retorna as últimas entradas do histórico."""
-    content = read_history(last)
-    return {"last": last, "content": content}
+@router.get("", response_model=HistoryResponse)
+def get_history(
+    last: Annotated[int, Query(ge=1, le=100, description="Número de entradas recentes")] = 15,
+) -> HistoryResponse:
+    return HistoryResponse(last=last, content=read_history(last))

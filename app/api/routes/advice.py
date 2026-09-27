@@ -1,27 +1,25 @@
-"""GET /advice endpoint."""
+"""Busca um conselho, com persistência opcional."""
 
-from __future__ import annotations
+from typing import Annotated
 
-from fastapi import APIRouter, Query
+import httpx
+from fastapi import APIRouter, Depends, Query
+from starlette.concurrency import run_in_threadpool
 
-from app.core.logging import get_logger
+from app.api.deps import get_http_client
 from app.models.advice import AdviceResponse
 from app.services.advice_service import fetch_advice
 from app.services.history_service import save_to_history
 
-logger = get_logger(__name__)
 router = APIRouter()
 
 
 @router.get("", response_model=AdviceResponse)
-async def get_advice(save: bool = Query(True, description="Persistir no histórico?")) -> AdviceResponse:
-    """Busca um conselho aleatório, transforma e opcionalmente salva."""
-    advice = await fetch_advice()
-
+async def get_advice(
+    client: Annotated[httpx.AsyncClient, Depends(get_http_client)],
+    save: Annotated[bool, Query(description="Persistir no histórico?")] = True,
+) -> AdviceResponse:
+    advice = await fetch_advice(client)
     if save:
-        save_to_history(advice)
-        logger.info("Advice saved to history", extra={"save": True})
-    else:
-        logger.info("Advice fetched without saving", extra={"save": False})
-
+        await run_in_threadpool(save_to_history, advice)
     return advice

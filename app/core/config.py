@@ -1,35 +1,23 @@
-"""Application configuration loaded from environment."""
+"""Configuração centralizada; valores podem vir do arquivo .env."""
 
-from __future__ import annotations
-
-import os
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
+from pydantic import Field, HttpUrl
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Centralized app settings with env-var overrides."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    # API
     APP_NAME: str = "Gerenciador de Conselhos API"
-    APP_VERSION: str = "0.2.0"
+    APP_VERSION: str = "0.3.0"
     DEBUG: bool = False
-
-    # External API
-    ADVICE_API_URL: str = "https://api.adviceslip.com/advice"
-    ADVICE_API_TIMEOUT: float = 5.0
-
-    # Persistence
-    HISTORICO_PATH: Path = Path(__file__).resolve().parent.parent.parent / "historico_conselhos.txt"
-
-    # Logging
+    ADVICE_API_URL: HttpUrl = HttpUrl("https://api.adviceslip.com/advice")
+    ADVICE_API_TIMEOUT: float = Field(default=5.0, gt=0)
+    DATABASE_PATH: Path = Path("data/conselhos.db")
+    # Compatibilidade com .env antigo; usado apenas pela migração explícita.
+    HISTORICO_PATH: Path = Path("historico_conselhos.txt")
     LOG_LEVEL: str = "INFO"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
-
-# Singleton instance – import this everywhere
 settings = Settings()
